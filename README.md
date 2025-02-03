@@ -15,14 +15,15 @@ Wickets lost
 Run rate
 Last five overs' performance
 
-#Libraries Used
+# Libraries Used
 The following Python libraries are used in this notebook:
 
 pandas – for data manipulation
 numpy – for numerical operations
 matplotlib & seaborn – for data visualization
 scikit-learn – for building and evaluating the predictive model
-Steps in the Notebook
+
+# Steps in the Notebook
 Data Loading
 The dataset is imported into a pandas DataFrame.
 Data Preprocessing
@@ -35,7 +36,8 @@ Analyzing team performance over time.
 Model Training
 Regression models such as Linear Regression, Random Forest, or XGBoost are used.
 The dataset is split into training and test sets.
-Model Evaluation
+
+# Model Evaluation
 Performance metrics such as Mean Absolute Error (MAE), Mean Squared Error (MSE), and R² score are used to assess accuracy.
 Prediction & Conclusion
 The trained model is used to predict the first innings score based on live inputs.
