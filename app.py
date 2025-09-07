@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import time
 
 # Set page configuration
@@ -124,39 +123,37 @@ wickets = st.sidebar.slider("Wickets Fallen", 0, 9, 2)
 runs_last_5 = st.sidebar.number_input("Runs in Last 5 Overs", min_value=0, max_value=100, value=45)
 wickets_last_5 = st.sidebar.slider("Wickets in Last 5 Overs", 0, 5, 1)
 
-# Simulate model training
-@st.cache_resource
-def create_model():
-    # This would be replaced with your actual trained model
-    from sklearn.ensemble import RandomForestRegressor
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    
-    # Train on sample data
-    X = sample_data[['Overs', 'Runs', 'Wickets', 'Runs_Last_5', 'Wickets_Last_5']]
-    y = sample_data['Total_Score']
-    model.fit(X, y)
-    
-    return model
-
-model = create_model()
-
-# Prediction function
+# Prediction function (simplified without ML model)
 def predict_score(batting_team, bowling_team, venue, overs, runs, wickets, runs_last_5, wickets_last_5):
+    # Base prediction formula
+    base_prediction = runs + (20 - overs) * (runs / overs) * 0.9
     
-    # Prepare input features
-    input_features = pd.DataFrame({
-        'Overs': [overs],
-        'Runs': [runs],
-        'Wickets': [wickets],
-        'Runs_Last_5': [runs_last_5],
-        'Wickets_Last_5': [wickets_last_5]
-    })
+    # Adjust based on wickets
+    wicket_impact = wickets * 5
     
-    # Make prediction
-    prediction = model.predict(input_features)[0]
+    # Adjust based on recent performance
+    recent_performance_impact = (runs_last_5 - 40) * 0.5  # 40 is average runs in last 5 overs
+    wicket_recent_impact = wickets_last_5 * 3
+    
+    # Venue impact (simple simulation)
+    venue_factors = {
+        "M Chinnaswamy Stadium": 1.1,  # High scoring ground
+        "Punjab Cricket Association Stadium, Mohali": 1.0,
+        "Feroz Shah Kotla": 0.95,
+        "Wankhede Stadium": 1.05,
+        "Eden Gardens": 1.0,
+        "Sawai Mansingh Stadium": 0.9,
+        "Rajiv Gandhi International Stadium, Uppal": 1.0,
+        "MA Chidambaram Stadium, Chepauk": 0.95
+    }
+    venue_factor = venue_factors.get(venue, 1.0)
+    
+    # Calculate final prediction
+    prediction = (base_prediction - wicket_impact + recent_performance_impact - 
+                 wicket_recent_impact) * venue_factor
     
     # Add some randomness to simulate real-world uncertainty
-    uncertainty = np.random.normal(0, 5)
+    uncertainty = np.random.normal(0, 8)
     predicted_score = int(prediction + uncertainty)
     
     # Ensure realistic score
@@ -185,6 +182,73 @@ def calculate_metrics(overs, runs, wickets, predicted_score):
         'required_rr': required_rr,
         'projected_current_rr': projected_current_rr
     }
+
+# Create matplotlib visualizations
+def create_run_rate_chart(overs, current_rr, required_rr):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Create data points
+    x_points = [overs]
+    y_current = [current_rr]
+    
+    if overs < 20:
+        y_required = [required_rr]
+        ax.scatter(x_points, y_required, color='green', s=100, label='Required RR', zorder=5)
+        ax.axhline(y=required_rr, color='green', linestyle='--', alpha=0.7)
+        ax.text(20, required_rr, f'Required RR: {required_rr:.2f}', 
+                verticalalignment='center', color='green')
+    
+    ax.scatter(x_points, y_current, color='red', s=100, label='Current RR', zorder=5)
+    ax.axhline(y=current_rr, color='red', linestyle='--', alpha=0.7)
+    ax.text(20, current_rr, f'Current RR: {current_rr:.2f}', 
+            verticalalignment='center', color='red')
+    
+    ax.set_xlabel('Overs')
+    ax.set_ylabel('Run Rate')
+    ax.set_title('Run Rate Analysis')
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    ax.set_xlim(0, 20)
+    
+    return fig
+
+def create_histogram_chart(sample_data, prediction):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Create histogram
+    ax.hist(sample_data['Total_Score'], bins=15, alpha=0.7, color='skyblue', edgecolor='black')
+    
+    # Add prediction line
+    ax.axvline(x=prediction, color='red', linestyle='--', linewidth=2, label=f'Predicted Score: {prediction}')
+    
+    ax.set_xlabel('Total Score')
+    ax.set_ylabel('Frequency')
+    ax.set_title('Distribution of Historical Scores in Similar Conditions')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    return fig
+
+def create_scatter_plot(sample_data):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Create scatter plot
+    scatter = ax.scatter(sample_data['Overs'], sample_data['Runs'], 
+                        c=sample_data['Total_Score'], 
+                        s=sample_data['Wickets']*20 + 30, 
+                        alpha=0.7, 
+                        cmap='viridis')
+    
+    # Add colorbar
+    cbar = plt.colorbar(scatter)
+    cbar.set_label('Total Score')
+    
+    ax.set_xlabel('Overs')
+    ax.set_ylabel('Runs')
+    ax.set_title('Relationship Between Overs, Runs, and Final Score')
+    ax.grid(True, alpha=0.3)
+    
+    return fig
 
 # Make prediction when button is clicked
 if st.sidebar.button("🚀 Predict Score", use_container_width=True):
@@ -242,54 +306,13 @@ if st.sidebar.button("🚀 Predict Score", use_container_width=True):
         
         with tab1:
             # Run rate chart
-            fig_rr = go.Figure()
-            
-            # Current run rate
-            fig_rr.add_trace(go.Scatter(
-                x=[overs], y=[metrics['current_rr']],
-                mode='markers+text',
-                marker=dict(size=15, color='red'),
-                text=["Current RR"],
-                textposition="top center",
-                name="Current RR"
-            ))
-            
-            # Required run rate
-            if overs < 20:
-                fig_rr.add_trace(go.Scatter(
-                    x=[overs], y=[metrics['required_rr']],
-                    mode='markers+text',
-                    marker=dict(size=15, color='green'),
-                    text=["Required RR"],
-                    textposition="top center",
-                    name="Required RR"
-                ))
-            
-            # Projected run rate
-            fig_rr.add_hline(y=metrics['current_rr'], line_dash="dash", line_color="red",
-                            annotation_text="Current Run Rate", annotation_position="bottom right")
-            
-            if overs < 20:
-                fig_rr.add_hline(y=metrics['required_rr'], line_dash="dash", line_color="green",
-                                annotation_text="Required Run Rate", annotation_position="top right")
-            
-            fig_rr.update_layout(
-                title="Run Rate Analysis",
-                xaxis_title="Overs",
-                yaxis_title="Run Rate",
-                showlegend=True
-            )
-            
-            st.plotly_chart(fig_rr, use_container_width=True)
+            fig_rr = create_run_rate_chart(overs, metrics['current_rr'], metrics['required_rr'])
+            st.pyplot(fig_rr)
         
         with tab2:
             # Historical comparison
-            fig_hist = px.histogram(sample_data, x="Total_Score", 
-                                   title="Distribution of Historical Scores in Similar Conditions")
-            fig_hist.add_vline(x=prediction, line_dash="dash", line_color="red",
-                              annotation_text="Predicted Score", annotation_position="top right")
-            
-            st.plotly_chart(fig_hist, use_container_width=True)
+            fig_hist = create_histogram_chart(sample_data, prediction)
+            st.pyplot(fig_hist)
         
         # Match insights
         st.subheader("💡 Match Insights")
@@ -319,7 +342,7 @@ else:
     st.markdown("""
     ## Welcome to the IPL Score Predictor!
     
-    This tool uses machine learning to predict the first innings score in an IPL cricket match based on current match conditions.
+    This tool predicts the first innings score in an IPL cricket match based on current match conditions.
     """)
     
     # How to use section
@@ -336,15 +359,12 @@ else:
     # Sample visualization
     st.subheader("📊 Run Rate vs Total Score (Sample Data)")
     
-    fig_sample = px.scatter(sample_data, x="Overs", y="Runs", color="Total_Score",
-                           size="Wickets", hover_data=["Runs_Last_5", "Wickets_Last_5"],
-                           title="Relationship Between Overs, Runs, and Final Score")
-    
-    st.plotly_chart(fig_sample, use_container_width=True)
+    fig_sample = create_scatter_plot(sample_data)
+    st.pyplot(fig_sample)
 
 # Footer
 st.markdown("---")
 st.markdown("""
-**Disclaimer:** This is a demonstration application. Predictions are based on simulated data and machine learning models.
+**Disclaimer:** This is a demonstration application. Predictions are based on simulated data.
 For accurate real-world predictions, more detailed historical data would be required.
 """)
